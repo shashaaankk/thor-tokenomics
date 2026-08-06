@@ -14,6 +14,7 @@ must not batch tokens), finish_reason (output length must be forced).
 """
 
 import argparse
+import hashlib
 import json
 import statistics
 import subprocess
@@ -117,6 +118,7 @@ def request(cfg: dict, prompt: dict) -> dict:
     t_end = time.perf_counter()
     if t_first is None:
         raise RuntimeError("no content chunks streamed")
+    full = "".join(text)
     return {"ttft_ms": round((t_first - t0) * 1000.0, 3),
             "e2e_ms": round((t_end - t0) * 1000.0, 3),
             "itl_ms": [round(x, 3) for x in itl],
@@ -124,7 +126,8 @@ def request(cfg: dict, prompt: dict) -> dict:
             "completion_tokens": usage.get("completion_tokens"),
             "prompt_tokens": usage.get("prompt_tokens"),
             "finish_reason": finish,
-            "text_head": "".join(text)[:120],
+            "text_sha256": hashlib.sha256(full.encode()).hexdigest(),
+            "text_head": full[:120],
             "t_wall": time.time()}
 
 
@@ -143,7 +146,12 @@ def summarize(recs: list[dict], warnings: list[str]) -> dict:
     tpot_med = statistics.median(itl)
     e2e_med = statistics.median(e2e)
     decomp = ttft_med + (n - 1) * tpot_med
+    distinct = len({r.get("text_sha256") or r["text_head"] for r in recs})
+    if distinct > 1:
+        warnings = warnings + [
+            f"{distinct} distinct outputs across {len(recs)} greedy requests: not deterministic"]
     return {"n_requests": len(recs), "completion_tokens": n,
+            "distinct_outputs": distinct,
             "tokens_from": "server" if server_n else "chunk count",
             "ttft_ms_p50": round(ttft_med, 1), "ttft_ms_p95": round(p(ttft, 0.95), 1),
             "tpot_ms_p50": round(tpot_med, 3), "tpot_ms_p99": round(p(itl, 0.99), 3),
@@ -158,6 +166,7 @@ def summarize(recs: list[dict], warnings: list[str]) -> dict:
 
 def show(s: dict) -> None:
     print(f"\nrequests            : {s['n_requests']}")
+    print(f"distinct outputs    : {s.get('distinct_outputs', 'n/a')} (sha256 of full text)")
     print(f"completion tokens   : {s['completion_tokens']} ({s['tokens_from']})")
     print(f"TTFT p50 / p95      : {s['ttft_ms_p50']} / {s['ttft_ms_p95']} ms")
     print(f"TPOT p50 / p99      : {s['tpot_ms_p50']} / {s['tpot_ms_p99']} ms")
