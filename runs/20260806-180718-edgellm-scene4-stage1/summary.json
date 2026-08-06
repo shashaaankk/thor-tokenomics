@@ -1,0 +1,16 @@
+{
+  "n_requests": 10,
+  "completion_tokens": 126,
+  "distinct_outputs": 1,
+  "tokens_from": "chunk count",
+  "ttft_ms_p50": 130.1,
+  "ttft_ms_p95": 131.6,
+  "tpot_ms_p50": 9.92,
+  "tpot_ms_p99": 19.562,
+  "decode_tok_s": 100.8,
+  "e2e_ms_p50": 1389.5,
+  "throughput_tok_s": 90.7,
+  "decomposition_gap_pct": -1.4,
+  "chunks_per_token": null,
+  "warnings": []
+}
