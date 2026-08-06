@@ -32,9 +32,7 @@ identical work and the medians mean something.
 Terminal 1, start a backend (inside tmux):
 
 ```bash
-./serve.sh edgellm                 # self-quantized Qwen2.5-3B int4_awq engine
-./serve.sh vllm Qwen/Qwen2.5-3B-Instruct-AWQ
-./serve.sh llamacpp ~/models/Qwen3-8B-Q4_K_M.gguf
+./serve.sh configs/edgellm-3b-selfawq.toml
 ```
 
 Terminal 2, measure:

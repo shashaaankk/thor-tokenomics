@@ -1,9 +1,11 @@
 # Edge-LLM serving the self-quantized Qwen2.5-3B int4_awq engine.
-# Start the server with EDGELLM_IGNORE_EOS=1, forced length is process wide.
+# serve.sh reads stack and artifact from this same file:
+#   ./serve.sh configs/edgellm-3b-selfawq.toml
 
 stack = "edgellm"
 url = "http://127.0.0.1:8080"
 model = "qwen2.5-3b-instruct-selfawq-engine"
+artifact = "~/thor-llm-throughput-check/models/qwen2.5-3b-instruct-selfawq-engine"
 
 max_tokens = 128
 warmup = 3
