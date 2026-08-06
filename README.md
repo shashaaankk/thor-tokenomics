@@ -39,7 +39,7 @@ Terminal 2, measure:
 
 ```bash
 source .venv/bin/activate
-thor-tokenomics run configs/edgellm-3b-selfawq.toml prompts/scene4.toml
+thor-tokenomics run prompts/scene4.toml
 thor-tokenomics report runs/<run-dir>
 ```
 

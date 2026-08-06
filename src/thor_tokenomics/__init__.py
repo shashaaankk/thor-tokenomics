@@ -1,16 +1,16 @@
 """Token latency measurement against an OpenAI-compatible server.
 
-One measurement cell = one config TOML (server) + one prompt TOML (workload).
-Streams every request, times TTFT, inter-token intervals and E2E client side,
-archives raw records, prints the breakdown.
+The client does not care what the server is. It asks /v1/models for the
+model id, fingerprints the stack from the server's own endpoints, and
+measures whatever answers.
 
-  thor-tokenomics run configs/edgellm-3b-selfawq.toml prompts/scene4.toml
+  thor-tokenomics run prompts/scene4.toml
+  thor-tokenomics run prompts/scene4.toml --url http://127.0.0.1:8080 --max-tokens 128
   thor-tokenomics report runs/<run-dir>
 
 Validity checks run during warmup and land in the summary as warnings:
-repeat TTFT ratio (prefix cache must be off) and chunks per token (the
-stream must not batch tokens). Stack-specific request shaping is keyed by
-the config's stack field.
+repeat TTFT ratio (prefix cache must be off), chunks per token (the stream
+must not batch tokens), finish_reason (output length must be forced).
 """
 
 import argparse
@@ -23,9 +23,34 @@ import tomllib
 import urllib.request
 from pathlib import Path
 
-STACKS = ("vllm", "edgellm", "llamacpp", "sglang")
 CACHE_RATIO_MIN = 0.6   # warmup repeat TTFT below this fraction => cache live
 CHUNK_RATIO_MIN = 0.9   # chunks below this fraction of tokens => batched stream
+
+
+def _get(url: str, path: str, timeout: float = 10) -> dict | None:
+    try:
+        with urllib.request.urlopen(url.rstrip("/") + path, timeout=timeout) as r:
+            return json.load(r)
+    except Exception:
+        return None
+
+
+def detect(url: str) -> dict:
+    """Identify the server: model id from /v1/models, stack from fingerprints."""
+    models = _get(url, "/v1/models")
+    if not models or not models.get("data"):
+        raise SystemExit(f"no model listed at {url}/v1/models, is the server up?")
+    entry = models["data"][0]
+    model = entry["id"]
+    if entry.get("owned_by") == "tensorrt-edgellm":
+        stack = "edgellm"
+    elif _get(url, "/props") is not None:            # llama.cpp only
+        stack = "llamacpp"
+    elif _get(url, "/model_info") is not None:       # sglang only
+        stack = "sglang"
+    else:
+        stack = "vllm"                               # vllm-shaped default
+    return {"url": url, "model": model, "stack": stack}
 
 
 def body_for(cfg: dict, prompt: dict, stream: bool = True) -> dict:
@@ -154,13 +179,15 @@ def sh(cmd: str) -> str:
         return f"unavailable: {e}"
 
 
-def run(config_path: str, prompt_path: str) -> int:
-    cfg = tomllib.loads(Path(config_path).read_text())
+def run(prompt_path: str, url: str, max_tokens: int, warmup: int,
+        requests_n: int, timeout_s: float, runs_dir: str) -> int:
     prompt = tomllib.loads(Path(prompt_path).read_text())
-    if cfg["stack"] not in STACKS:
-        raise SystemExit(f"stack {cfg['stack']!r} not in {STACKS}")
+    cfg = detect(url)
+    cfg.update({"max_tokens": max_tokens, "warmup": warmup,
+                "requests": requests_n, "timeout_s": timeout_s})
+    print(f"server: {cfg['stack']} serving {cfg['model']} at {url}")
 
-    run_dir = Path(cfg.get("runs_dir", "runs")) / (
+    run_dir = Path(runs_dir) / (
         time.strftime("%Y%m%d-%H%M%S") + f"-{cfg['stack']}-{prompt['name']}")
     run_dir.mkdir(parents=True, exist_ok=True)
 
@@ -215,14 +242,20 @@ def report(run_dir: str) -> int:
 def main() -> int:
     ap = argparse.ArgumentParser(prog="thor-tokenomics")
     sub = ap.add_subparsers(dest="cmd", required=True)
-    r = sub.add_parser("run", help="measure one cell")
-    r.add_argument("config")
+    r = sub.add_parser("run", help="measure whatever serves at --url")
     r.add_argument("prompt")
+    r.add_argument("--url", default="http://127.0.0.1:8080")
+    r.add_argument("--max-tokens", type=int, default=128)
+    r.add_argument("--warmup", type=int, default=3)
+    r.add_argument("--requests", type=int, default=10)
+    r.add_argument("--timeout", type=float, default=600.0)
+    r.add_argument("--runs-dir", default="runs")
     p_ = sub.add_parser("report", help="re-print a past run")
     p_.add_argument("run_dir")
     a = ap.parse_args()
     if a.cmd == "run":
-        return run(a.config, a.prompt)
+        return run(a.prompt, a.url, a.max_tokens, a.warmup,
+                   a.requests, a.timeout, a.runs_dir)
     return report(a.run_dir)
 
 
