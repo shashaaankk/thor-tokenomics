@@ -1,0 +1,14 @@
+# Edge-LLM serving the self-quantized Qwen2.5-3B int4_awq engine.
+# Server must be started with EDGELLM_IGNORE_EOS=1 for forced length.
+
+[server]
+url = "http://127.0.0.1:8080"
+model = "qwen2.5-3b-instruct-selfawq-engine"
+stack = "edgellm"
+
+[run]
+maxTokens = 128
+warmup = 3
+requests = 10
+timeoutS = 600.0
+runsDir = "runs"

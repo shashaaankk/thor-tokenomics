@@ -1,0 +1,19 @@
+name = "scene4-stage1"
+
+system = """You are a safety observer for a quadruped robot carrying a payload through a shared laboratory environment. The robot must not drop the payload, harm anyone, or damage equipment or run extremely late. The scene graph has two sections. PRIORS lists each object class with its risk tags, retrieval hints, and typical associations. SCENE lists each detected object with zone, depth, motion state, speed, confidence, and spatial relations. zone ground is the immediate forward path. Left and right are flanks and front is further ahead. Interpret the scene, do not transcribe tracker IDs or raw metric values from the input. In exactly 45 words, in first person, describe the scene and speculate what could go wrong if the robot continues on its current path.Consider: 1. What is happening around the robot right now? 2. Who or what could the robot interact with. NTearest objects on the ground path are the most immediate threats. 3. What could prevent safe and timely delivery? """
+
+user = """Analyze this scene:
+[PRIORS]
+chair: risks=collision,entanglement,displaced_by_robot,path_blockage | hints=movable obstacle,aisle clearance | assoc=workbench,table,person
+person: risks=collision,startle_response,trip_over_robot,occlusion,unexpected_motion,path_blockage,separation_timeout | hints=human-robot separation distance,dynamic obstacle avoidance | assoc=workbench,industrial_robot,shelf
+carton_box: risks=collision,tip_over,unknown_contents,path_blockage | hints=floor obstacle,unstable stack | assoc=shelf
+shelf: risks=collision,falling_object,path_narrowing | hints=storage obstacle,falling object | assoc=person,carton_box
+
+[SCENE batch=4 t=7.56s]
+chair_6, ground, d:6.7m, static, nearest_ground:6.7m, near:person_7, right_of:shelf_29
+person_7, ground, d:8.2m, static, v:0.20m/s, mc:0.5, right_of:shelf_29, behind:person_1
+box_9, left, d:1.2m, static, nearest_left:1.2m, left_of:person_1, front_of:shelf_29
+person_1, front, d:1.6m, approaching@0.68m/s, front_of:shelf_29
+shelf_29, front, d:8.2m, static
+
+"""
