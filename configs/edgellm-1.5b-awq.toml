@@ -1,0 +1,7 @@
+# Edge-LLM serving Qwen2.5-1.5B-Instruct-AWQ (published checkpoint, INT4 AWQ).
+#   ./serve.sh configs/edgellm-1.5b-awq.toml
+
+stack = "edgellm"
+url = "http://127.0.0.1:8080"
+model = "qwen2.5-1.5b-instruct-awq-engine"
+artifact = "~/thor-llm-throughput-check/models/qwen2.5-1.5b-instruct-awq-engine"
