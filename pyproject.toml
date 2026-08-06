@@ -1,18 +1,16 @@
 [project]
-name = "thor-llm-bench"
+name = "thor-tokenomics"
 version = "0.1.0"
-description = "Latency and throughput measurement client for LLM serving stacks on Jetson AGX Thor"
+description = "Token latency measurement against OpenAI-compatible LLM servers on Jetson AGX Thor"
 requires-python = ">=3.11"
-dependencies = [
-    "numpy>=1.26",
-]
+dependencies = []
 
 [project.scripts]
-thor-bench = "thor_bench.cli:main"
+thor-tokenomics = "thor_tokenomics:main"
 
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/thor_bench"]
+packages = ["src/thor_tokenomics"]
