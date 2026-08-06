@@ -112,30 +112,36 @@ def summarize(recs: list[dict], warnings: list[str]) -> dict:
     itl = [v for r in recs for v in r["itl_ms"]]
     ttft = [r["ttft_ms"] for r in recs]
     e2e = [r["e2e_ms"] for r in recs]
-    n = recs[0]["completion_tokens"] or recs[0]["chunks"]
+    server_n = recs[0]["completion_tokens"]
+    n = server_n or recs[0]["chunks"]
     ttft_med = statistics.median(ttft)
     tpot_med = statistics.median(itl)
     e2e_med = statistics.median(e2e)
     decomp = ttft_med + (n - 1) * tpot_med
     return {"n_requests": len(recs), "completion_tokens": n,
+            "tokens_from": "server" if server_n else "chunk count",
             "ttft_ms_p50": round(ttft_med, 1), "ttft_ms_p95": round(p(ttft, 0.95), 1),
             "tpot_ms_p50": round(tpot_med, 3), "tpot_ms_p99": round(p(itl, 0.99), 3),
             "decode_tok_s": round(1000.0 / tpot_med, 1),
             "e2e_ms_p50": round(e2e_med, 1),
+            "throughput_tok_s": round(n / (e2e_med / 1000.0), 1),
             "decomposition_gap_pct": round(100 * (decomp - e2e_med) / e2e_med, 2),
-            "chunks_per_token": round(recs[0]["chunks"] / n, 3),
+            "chunks_per_token": (round(recs[0]["chunks"] / server_n, 3)
+                                 if server_n else None),
             "warnings": warnings}
 
 
 def show(s: dict) -> None:
     print(f"\nrequests            : {s['n_requests']}")
-    print(f"completion tokens   : {s['completion_tokens']}")
+    print(f"completion tokens   : {s['completion_tokens']} ({s['tokens_from']})")
     print(f"TTFT p50 / p95      : {s['ttft_ms_p50']} / {s['ttft_ms_p95']} ms")
     print(f"TPOT p50 / p99      : {s['tpot_ms_p50']} / {s['tpot_ms_p99']} ms")
-    print(f"decode speed        : {s['decode_tok_s']} tok/s")
+    print(f"decode speed        : {s['decode_tok_s']} tok/s   (1000 / TPOT, decode phase only)")
+    print(f"throughput          : {s['throughput_tok_s']} tok/s   (tokens / E2E, whole request)")
     print(f"E2E p50             : {s['e2e_ms_p50']} ms")
     print(f"decomposition gap   : {s['decomposition_gap_pct']} %")
-    print(f"chunks per token    : {s['chunks_per_token']}")
+    if s["chunks_per_token"] is not None:
+        print(f"chunks per token    : {s['chunks_per_token']}")
     for w in s["warnings"]:
         print(f"WARNING: {w}")
 
@@ -180,7 +186,8 @@ def run(config_path: str, prompt_path: str) -> int:
             recs.append(rec)
             f.write(json.dumps(rec) + "\n")
             print(f"req {i + 1}/{cfg['requests']}: ttft={rec['ttft_ms']:.1f}ms "
-                  f"e2e={rec['e2e_ms']:.1f}ms tokens={rec['completion_tokens']}")
+                  f"e2e={rec['e2e_ms']:.1f}ms "
+                  f"tokens={rec['completion_tokens'] or rec['chunks']}")
 
     s = summarize(recs, warnings)
     (run_dir / "summary.json").write_text(json.dumps(s, indent=2))
@@ -194,7 +201,13 @@ def run(config_path: str, prompt_path: str) -> int:
 
 
 def report(run_dir: str) -> int:
-    s = json.loads((Path(run_dir) / "summary.json").read_text())
+    """Recompute the summary from raw records, so old runs gain new fields."""
+    d = Path(run_dir)
+    recs = [json.loads(l) for l in
+            (d / "requests.jsonl").read_text().splitlines() if l.strip()]
+    old = json.loads((d / "summary.json").read_text()) if (d / "summary.json").exists() else {}
+    s = summarize(recs, old.get("warnings", []))
+    (d / "summary.json").write_text(json.dumps(s, indent=2))
     show(s)
     return 0
 
